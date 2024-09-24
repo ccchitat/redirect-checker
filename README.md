@@ -35,9 +35,13 @@ def html2():
     return render_template('index.html', title='Welcome', message='Hello, World!')
 ```
 
+- 查询 mysql 数据库并返回查询结果。https://vercel-python-flask-demo.vercel.app/mysql-query
+
 ## 说明
 
-1. vercel 部署 python flask 项目，必须在根目录下创建 api 目录 (目录名必须是 api，这样 vercel 才会识别为 Functions)，flask 的入口文件放在 api 目录下面，flask 文件可以随意取，比如 index.py, app.py 都可以；
+1. api 目录
+
+vercel 部署 python flask 项目，必须在根目录下创建 api 目录 (目录名必须是 api，这样 vercel 才会识别为 Functions)，flask 的入口文件放在 api 目录下面，flask 文件可以随意取，比如 index.py, app.py 都可以；
 
 2. 如果使用了 Flask 的 html template 功能，需要手动设置 templates 路径：
 
@@ -53,7 +57,7 @@ def html2():
     |-- index.html
 ```
 
-在 api/app.py 中设置 templates 路径：
+在 api/app.py 中设置 templates 路径:
 
 ``` python
 from flask import Flask, render_template
@@ -66,7 +70,7 @@ app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
 3. requirements.txt 文件
 
-项目中使用到的 python 依赖需要记录在这里面，这样部署到 vercel 上之后 vercel 会下载相关依赖。
+项目中使用到的 python 依赖需要记录在这里面，这样部署之后 vercel 会下载相关依赖。
 
 4. vercel.json 文件
 

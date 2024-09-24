@@ -1,8 +1,16 @@
 from flask import Flask, render_template
 import pymysql
+import os
 from contextlib import contextmanager
+from dotenv import load_dotenv
 
-app = Flask(__name__, template_folder="../templates", static_folder="../static")
+# 加载 .env 文件中的环境变量
+load_dotenv()
+
+app = Flask(__name__, 
+    template_folder="../templates", 
+    static_folder="../static"
+)
 
 @app.route('/')
 def home():
@@ -13,27 +21,20 @@ def test_json():
     return {'name': 'vercel'}
 
 @app.route('/html-str')
-def html1():
+def html_str():
     return '<html><body><h1>Hello, World!</h1></body></html>'
 
 @app.route('/html-template')
-def html2():
+def html_template():
     return render_template('index.html', title='Welcome', message='Hello, World!')
 
 
-db_config = {
-    'host': 'mysql.sqlpub.com',
-    'user': 'test_vercel',
-    'password': 'zULLth3A5Q46EthN',
-    'database': 'test_vercel'
-}
-
 class DatabaseConnection:
-    def __init__(self, host, user, password, database, charset='utf8mb4'):
-        self.host = host
-        self.user = user
-        self.password = password
-        self.database = database
+    def __init__(self, charset='utf8mb4'):
+        self.host = os.getenv('DB_HOST')
+        self.user = os.getenv('DB_USER')
+        self.password = os.getenv('DB_PWD')
+        self.database = os.getenv('DB_NAME')
         self.charset = charset
 
     @contextmanager
@@ -68,28 +69,8 @@ class DatabaseConnection:
                     cursor.execute(query)
                 connection.commit()
 
-@app.route('/mysql-init')
-def mysql_init():
-    db = DatabaseConnection(**db_config)
-    db.execute_non_query("""
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    age INT NOT NULL,
-    gender ENUM('male', 'female') NOT NULL
-);
-""")
-    return "初始化 users 表成功"
-
 @app.route('/mysql-query')
 def mysql_query():
-    db = DatabaseConnection(**db_config)
+    db = DatabaseConnection()
     result = db.execute_query("SELECT * FROM users")
     return list(result)
-
-
-@app.route('/mysql-insert')
-def mysql_insert():
-    db = DatabaseConnection(**db_config)
-    db.execute_non_query("INSERT INTO users (username, age, gender) VALUES ('John Doe', 30, 'male')")
-    return "新增成功"
