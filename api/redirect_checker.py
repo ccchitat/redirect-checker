@@ -1,20 +1,8 @@
 import requests
 from typing import List, Dict, Optional, Union
-from dataclasses import dataclass
 from urllib.parse import urlparse
 import time
 import re
-
-
-@dataclass
-class RedirectResult:
-    url: str
-    host: str
-    status: int
-    status_text: str
-    duration: str
-    meta_refresh: bool
-    location: Optional[str]
 
 
 class RedirectChecker:
@@ -107,7 +95,7 @@ class RedirectChecker:
     def check_url(self,
                   url: str,
                   additional_headers: Dict[str, str] = None,
-                  debug: bool = False) -> List[RedirectResult]:
+                  debug: bool = False) -> List[Dict]:
         """
         检查URL的重定向链
 
@@ -117,7 +105,7 @@ class RedirectChecker:
             debug: 是否启用调试模式
 
         Returns:
-            重定向结果列表
+            重定向结果列表，每个结果为一个字典
         """
         results = []
         current_url = url
@@ -140,23 +128,23 @@ class RedirectChecker:
                     print("..." if len(response.text) > 500 else "")
 
                 parsed_url = urlparse(current_url)
-                result = RedirectResult(
-                    url=current_url,
-                    host=parsed_url.netloc,
-                    status=response.status_code,
-                    status_text=response.reason,
-                    duration=duration,
-                    meta_refresh=False,
-                    location=None
-                )
+                result = {
+                    'url': current_url,
+                    'host': parsed_url.netloc,
+                    'status': response.status_code,
+                    'status_text': response.reason,
+                    'duration': duration,
+                    'meta_refresh': False,
+                    'location': None
+                }
 
                 # 检查HTTP重定向
                 if 300 <= response.status_code < 400:
-                    result.location = response.headers.get('Location')
-                    if result.location:
-                        if not result.location.startswith(('http://', 'https://')):
-                            result.location = requests.compat.urljoin(
-                                current_url, result.location)
+                    result['location'] = response.headers.get('Location')
+                    if result['location']:
+                        if not result['location'].startswith(('http://', 'https://')):
+                            result['location'] = requests.compat.urljoin(
+                                current_url, result['location'])
 
                 # 检查meta refresh重定向
                 elif response.status_code == 200:
@@ -164,18 +152,18 @@ class RedirectChecker:
                     if debug:
                         print(f"\n调试 - Meta refresh检测结果: {meta_location}")
                     if meta_location:
-                        result.meta_refresh = True
-                        result.location = requests.compat.urljoin(
+                        result['meta_refresh'] = True
+                        result['location'] = requests.compat.urljoin(
                             current_url, meta_location)
 
                 results.append(result)
 
                 # 如果没有下一个重定向位置，结束检查
-                if not result.location:
+                if not result['location']:
                     break
 
                 # 更新当前URL为下一个重定向位置
-                current_url = result.location
+                current_url = result['location']
 
                 # 防止无限重定向
                 if len(results) >= 10:
@@ -184,33 +172,33 @@ class RedirectChecker:
             except Exception as e:
                 if debug:
                     print(f"\n调试 - 发生错误: {str(e)}")
-                results.append(RedirectResult(
-                    url=current_url,
-                    host=urlparse(current_url).netloc,
-                    status=0,
-                    status_text=f"Error: {str(e)}",
-                    duration=f"{time.time() - start_request:.3f} s",
-                    meta_refresh=False,
-                    location=None
-                ))
+                results.append({
+                    'url': current_url,
+                    'host': urlparse(current_url).netloc,
+                    'status': 0,
+                    'status_text': f"Error: {str(e)}",
+                    'duration': f"{time.time() - start_request:.3f} s",
+                    'meta_refresh': False,
+                    'location': None
+                })
                 break
 
         return results
 
-    def print_url_chain(self, results: List[RedirectResult]) -> None:
+    def print_url_chain(self, results: List[Dict]) -> None:
         """打印URL重定向链"""
         print("\nURL重定向链:")
         for i, result in enumerate(results):
-            print(f"{result.url}", end="")
+            print(f"{result['url']}", end="")
             if i < len(results) - 1:
                 print(" ->\n", end="")
         print("\n")
 
-    def print_domain_chain(self, results: List[RedirectResult]) -> None:
+    def print_domain_chain(self, results: List[Dict]) -> None:
         """只打印域名重定向链"""
         print("\n域名重定向链:")
         for i, result in enumerate(results):
-            print(f"{result.host}", end="")
+            print(f"{result['host']}", end="")
             if i < len(results) - 1:
                 print(" -> ", end="")
         print("\n")
