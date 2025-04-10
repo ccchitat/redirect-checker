@@ -238,3 +238,71 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def check_redirects(url, headers=None, proxies=None, timeout=5, max_hops=10):
+    """
+    检查URL的重定向链
+
+    Args:
+        url: 要检查的URL
+        headers: 请求头
+        proxies: 代理设置
+        timeout: 超时时间（秒）
+        max_hops: 最大跳转次数
+
+    Returns:
+        dict: 包含重定向路径和最终URL的字典
+    """
+    redirect_path = [url]
+    current_url = url
+    try:
+        for _ in range(max_hops):
+            response = requests.get(
+                current_url,
+                headers=headers,
+                proxies=proxies,
+                allow_redirects=False,
+                timeout=timeout
+            )
+
+            # 如果是重定向状态码
+            if response.status_code in [301, 302, 303, 307, 308]:
+                if 'location' in response.headers:
+                    next_url = response.headers['location']
+                    # 处理相对URL
+                    if not bool(urlparse(next_url).netloc):
+                        next_url = requests.compat.urljoin(
+                            current_url, next_url)
+                    redirect_path.append(next_url)
+                    current_url = next_url
+                else:
+                    break
+            else:
+                # 如果不是重定向状态码，检查页面中的meta刷新
+                if response.headers.get('content-type', '').startswith('text/html'):
+                    content = response.text.lower()
+                    meta_refresh = content.find('http-equiv="refresh"')
+                    if meta_refresh != -1:
+                        url_start = content.find('url=', meta_refresh)
+                        if url_start != -1:
+                            url_start += 4
+                            url_end = content.find('"', url_start)
+                            if url_end != -1:
+                                next_url = content[url_start:url_end]
+                                redirect_path.append(next_url)
+                                current_url = next_url
+                                continue
+                break
+
+    except Exception as e:
+        print(f"检查重定向时出错: {str(e)}")
+        return {
+            'redirect_path': redirect_path,
+            'target_url': redirect_path[-1] if redirect_path else url
+        }
+
+    return {
+        'redirect_path': redirect_path,
+        'target_url': redirect_path[-1] if redirect_path else url
+    }

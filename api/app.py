@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from dotenv import load_dotenv
 import requests
 from urllib.parse import urlparse, urljoin
+from .redirect_checker import check_redirects  # 导入重定向检查器
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -86,22 +87,18 @@ def test_proxy_request():
         target_response = requests.get(
             target_link, headers=head_data, proxies=proxy_data)
 
-        # 调用重定向检查器API
-        redirect_check_url = f"https://api.redirect-checker.net/?url={requests.utils.quote(target_link)}&timeout=5&maxhops=10&meta-refresh=1&format=json"
-        redirect_response = requests.get(redirect_check_url,headers=head_data, proxies=proxy_data)
-        redirect_data = redirect_response.json()
+        # 使用本地重定向检查器
+        redirect_result = check_redirects(
+            target_link,
+            headers=head_data,
+            proxies=proxy_data,
+            timeout=5,
+            max_hops=10
+        )
 
-        # 提取重定向链中的URL
-        redirect_path = []
-        if redirect_data.get('result') == 'success' and 'data' in redirect_data:
-            for hop in redirect_data['data']:
-                if 'request' in hop and 'info' in hop['request']:
-                    url = hop['request']['info'].get('url', '')
-                    if url:
-                        redirect_path.append(url.replace('\\/', '/'))
-
-        # 获取最终目标URL
-        target_url = redirect_path[-1] if redirect_path else target_link
+        # 获取重定向路径和最终URL
+        redirect_path = redirect_result['redirect_path']
+        target_url = redirect_result['target_url']
 
         # 返回结果
         result = {
