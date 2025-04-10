@@ -6,19 +6,9 @@ import re
 
 
 class RedirectChecker:
-    def __init__(self,
-                 headers: Dict[str, str] = None,
-                 proxies: Dict[str, str] = None):
-        """
-        初始化重定向检查器
-
-        Args:
-            headers: 自定义请求头
-            proxies: 代理设置，格式如 {'http': 'http://user:pass@host:port', 'https': 'http://user:pass@host:port'}
-        """
+    def __init__(self):
+        """初始化重定向检查器"""
         self.session = requests.Session()
-
-        # 设置基础headers
         self.base_headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -26,28 +16,71 @@ class RedirectChecker:
             'Connection': 'keep-alive',
         }
 
-        # 更新自定义headers
+    def check_url(self, 
+                  url: str, 
+                  headers: Dict[str, str] = None, 
+                  proxies: Dict[str, str] = None,
+                  timeout: int = 5,
+                  max_hops: int = 10) -> Dict[str, Union[List[str], str]]:
+        """
+        检查URL的重定向链
+
+        Args:
+            url: 要检查的URL
+            headers: 请求头
+            proxies: 代理设置
+            timeout: 超时时间（秒）
+            max_hops: 最大跳转次数
+
+        Returns:
+            dict: 包含重定向路径和最终URL的字典
+        """
         if headers:
             self.base_headers.update(headers)
-
-        # 设置代理
+        
         if proxies:
             self.session.proxies.update(proxies)
 
-    def _get_headers(self, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
-        """
-        获取请求头
+        results = []
+        current_url = url
+        redirect_path = [url]
 
-        Args:
-            additional_headers: 额外的请求头
+        for _ in range(max_hops):
+            try:
+                response = self.session.get(
+                    current_url,
+                    headers=self.base_headers,
+                    allow_redirects=False,
+                    timeout=timeout
+                )
 
-        Returns:
-            合并后的请求头
-        """
-        headers = self.base_headers.copy()
-        if additional_headers:
-            headers.update(additional_headers)
-        return headers
+                # 检查HTTP重定向
+                if 300 <= response.status_code < 400 and 'Location' in response.headers:
+                    next_url = response.headers['Location']
+                    if not next_url.startswith(('http://', 'https://')):
+                        next_url = requests.compat.urljoin(current_url, next_url)
+                    redirect_path.append(next_url)
+                    current_url = next_url
+                    continue
+
+                # 检查meta refresh重定向
+                if response.status_code == 200:
+                    meta_location = self._check_meta_refresh(response.text)
+                    if meta_location:
+                        next_url = requests.compat.urljoin(current_url, meta_location)
+                        redirect_path.append(next_url)
+                        current_url = next_url
+                        continue
+                break
+
+            except Exception as e:
+                print(f"检查重定向时出错: {str(e)}")
+                break
+
+        return {
+            'redirect_path': redirect_path,
+            'target_url': redirect_path[-1] if redirect_path else url
+        }
 
     def _check_meta_refresh(self, content: str) -> Optional[str]:
         """检查HTML内容中是否存在meta refresh重定向"""
@@ -92,99 +125,6 @@ class RedirectChecker:
                 print(f"Meta refresh解析错误: {str(e)}")
         return None
 
-    def check_url(self,
-                  url: str,
-                  additional_headers: Dict[str, str] = None,
-                  debug: bool = False) -> List[Dict]:
-        """
-        检查URL的重定向链
-
-        Args:
-            url: 要检查的URL
-            additional_headers: 额外的请求头
-            debug: 是否启用调试模式
-
-        Returns:
-            重定向结果列表，每个结果为一个字典
-        """
-        results = []
-        current_url = url
-        start_time = time.time()
-
-        while True:
-            try:
-                start_request = time.time()
-                response = self.session.get(
-                    current_url,
-                    headers=self._get_headers(additional_headers),
-                    allow_redirects=False,
-                    timeout=10
-                )
-                duration = f"{time.time() - start_request:.3f} s"
-
-                if debug and response.status_code == 200:
-                    print(f"\n调试 - 页面内容预览:")
-                    print(response.text[:500])
-                    print("..." if len(response.text) > 500 else "")
-
-                parsed_url = urlparse(current_url)
-                result = {
-                    'url': current_url,
-                    'host': parsed_url.netloc,
-                    'status': response.status_code,
-                    'status_text': response.reason,
-                    'duration': duration,
-                    'meta_refresh': False,
-                    'location': None
-                }
-
-                # 检查HTTP重定向
-                if 300 <= response.status_code < 400:
-                    result['location'] = response.headers.get('Location')
-                    if result['location']:
-                        if not result['location'].startswith(('http://', 'https://')):
-                            result['location'] = requests.compat.urljoin(
-                                current_url, result['location'])
-
-                # 检查meta refresh重定向
-                elif response.status_code == 200:
-                    meta_location = self._check_meta_refresh(response.text)
-                    if debug:
-                        print(f"\n调试 - Meta refresh检测结果: {meta_location}")
-                    if meta_location:
-                        result['meta_refresh'] = True
-                        result['location'] = requests.compat.urljoin(
-                            current_url, meta_location)
-
-                results.append(result)
-
-                # 如果没有下一个重定向位置，结束检查
-                if not result['location']:
-                    break
-
-                # 更新当前URL为下一个重定向位置
-                current_url = result['location']
-
-                # 防止无限重定向
-                if len(results) >= 10:
-                    break
-
-            except Exception as e:
-                if debug:
-                    print(f"\n调试 - 发生错误: {str(e)}")
-                results.append({
-                    'url': current_url,
-                    'host': urlparse(current_url).netloc,
-                    'status': 0,
-                    'status_text': f"Error: {str(e)}",
-                    'duration': f"{time.time() - start_request:.3f} s",
-                    'meta_refresh': False,
-                    'location': None
-                })
-                break
-
-        return results
-
     def print_url_chain(self, results: List[Dict]) -> None:
         """打印URL重定向链"""
         print("\nURL重定向链:")
@@ -205,104 +145,34 @@ class RedirectChecker:
 
 
 def main():
-    # 使用示例
-    # 设置代理
+    """使用示例"""
+    # 测试URL
+    test_url = "https://www.redirectchecker.org/meta-redirect.html"
+    
+    # 设置headers和proxies
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
+        'Referer': 'https://example.com'
+    }
     proxies = {
         'http': 'http://user:pass@host:port',
         'https': 'http://user:pass@host:port'
     }
 
-    # 设置headers
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
-        'Referer': 'https://example.com'
-    }
-
-    # 创建检查器实例
-    checker = RedirectChecker(headers=headers, proxies=proxies)
-
-    # 测试URL
-    test_urls = [
-        "https://www.redirectchecker.org/meta-redirect.html"
-    ]
-
-    for url in test_urls:
-        print(f"\n检查URL: {url}")
-        # 可以在check_url时添加额外的headers
-        results = checker.check_url(url,
-                                    additional_headers={
-                                        'Custom-Header': 'Value'},
-                                    debug=True)
-        checker.print_url_chain(results)
+    # 创建检查器实例并检查URL
+    checker = RedirectChecker()
+    result = checker.check_url(
+        url=test_url,
+        headers=headers,
+        proxies=proxies,
+        timeout=5,
+        max_hops=10
+    )
+    
+    print(f"\n检查URL: {test_url}")
+    print("重定向路径:", " -> ".join(result['redirect_path']))
+    print("最终URL:", result['target_url'])
 
 
 if __name__ == "__main__":
     main()
-
-
-def check_redirects(url, headers=None, proxies=None, timeout=5, max_hops=10):
-    """
-    检查URL的重定向链
-
-    Args:
-        url: 要检查的URL
-        headers: 请求头
-        proxies: 代理设置
-        timeout: 超时时间（秒）
-        max_hops: 最大跳转次数
-
-    Returns:
-        dict: 包含重定向路径和最终URL的字典
-    """
-    redirect_path = [url]
-    current_url = url
-    try:
-        for _ in range(max_hops):
-            response = requests.get(
-                current_url,
-                headers=headers,
-                proxies=proxies,
-                allow_redirects=False,
-                timeout=timeout
-            )
-
-            # 如果是重定向状态码
-            if response.status_code in [301, 302, 303, 307, 308]:
-                if 'location' in response.headers:
-                    next_url = response.headers['location']
-                    # 处理相对URL
-                    if not bool(urlparse(next_url).netloc):
-                        next_url = requests.compat.urljoin(
-                            current_url, next_url)
-                    redirect_path.append(next_url)
-                    current_url = next_url
-                else:
-                    break
-            else:
-                # 如果不是重定向状态码，检查页面中的meta刷新
-                if response.headers.get('content-type', '').startswith('text/html'):
-                    content = response.text.lower()
-                    meta_refresh = content.find('http-equiv="refresh"')
-                    if meta_refresh != -1:
-                        url_start = content.find('url=', meta_refresh)
-                        if url_start != -1:
-                            url_start += 4
-                            url_end = content.find('"', url_start)
-                            if url_end != -1:
-                                next_url = content[url_start:url_end]
-                                redirect_path.append(next_url)
-                                current_url = next_url
-                                continue
-                break
-
-    except Exception as e:
-        print(f"检查重定向时出错: {str(e)}")
-        return {
-            'redirect_path': redirect_path,
-            'target_url': redirect_path[-1] if redirect_path else url
-        }
-
-    return {
-        'redirect_path': redirect_path,
-        'target_url': redirect_path[-1] if redirect_path else url
-    }

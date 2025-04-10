@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dotenv import load_dotenv
 import requests
 from urllib.parse import urlparse, urljoin
-from .redirect_checker import check_redirects  # 导入重定向检查器
+from .redirect_checker import check_url  # 导入重定向检查器
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -88,7 +88,7 @@ def test_proxy_request():
             target_link, headers=head_data, proxies=proxy_data)
 
         # 使用本地重定向检查器
-        redirect_result = check_redirects(
+        redirect_result = check_url(
             target_link,
             headers=head_data,
             proxies=proxy_data,
