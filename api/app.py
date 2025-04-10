@@ -16,17 +16,19 @@ proxy_info = {
 # 加载 .env 文件中的环境变量
 load_dotenv()
 
-app = Flask(__name__, 
-    template_folder="../templates", 
-    static_folder="../static"
-)
+app = Flask(__name__,
+            template_folder="../templates",
+            static_folder="../static"
+            )
+
 
 @app.route('/')
 def home():
     return 'Hello, World!'
 
+
 @app.route('/proxy')
-def test_proxy_request(proxy_info):
+def test_proxy_request():
     # 构建代理URL - 使用正确的格式
     # 格式应该是: http://username:password@host:port
     proxy_url = f"http://{proxy_info['username']}:{proxy_info['password']}@{proxy_info['host']}:{proxy_info['port']}"
@@ -55,14 +57,15 @@ def test_proxy_request(proxy_info):
         return f"代理请求失败: {str(e)}"
 
 
-
 @app.route('/json')
 def test_json():
     return {'name': 'vercel'}
 
+
 @app.route('/html-str')
 def html_str():
     return '<html><body><h1>Hello, World!</h1></body></html>'
+
 
 @app.route('/html-template')
 def html_template():
@@ -108,6 +111,7 @@ class DatabaseConnection:
                 else:
                     cursor.execute(query)
                 connection.commit()
+
 
 @app.route('/mysql-query')
 def mysql_query():
