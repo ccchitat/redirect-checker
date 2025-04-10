@@ -4,6 +4,7 @@ import os
 from contextlib import contextmanager
 from dotenv import load_dotenv
 import requests
+from urllib.parse import urlparse, urljoin
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -17,6 +18,28 @@ app = Flask(__name__,
 @app.route('/')
 def home():
     return 'Hello, World!'
+
+
+def is_valid_url(url):
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except:
+        return False
+
+
+def create_tracking_template(url):
+    if not is_valid_url(url):
+        return ""
+    try:
+        # 分割 URL 的基础部分和查询参数
+        base_url = url.split('?')[0]
+        query_part = url[len(base_url):] if '?' in url else ''
+
+        # 返回 {lpurl} 加上查询参数
+        return "{lpurl}" + query_part
+    except:
+        return ""
 
 
 @app.route('/proxy', methods=['POST'])
@@ -74,6 +97,9 @@ def test_proxy_request():
                     if url:
                         redirect_path.append(url.replace('\\/', '/'))
 
+        # 获取最终目标URL
+        target_url = redirect_path[-1] if redirect_path else target_link
+
         # 返回结果
         result = {
             'ip_info': {
@@ -83,7 +109,9 @@ def test_proxy_request():
                 'city': ip_data.get('city', '未知')
             },
             'code': target_response.status_code,
-            'redirect_path': redirect_path
+            'redirect_path': redirect_path,
+            'target_url': target_url,
+            'tracking_template': create_tracking_template(target_url)
         }
 
         return result
