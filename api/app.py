@@ -47,14 +47,22 @@ def test_proxy_request():
     }
 
     try:
-        response = requests.get('http://icanhazip.com',
+        response = requests.get('https://ipapi.co/json/',
                                 headers=head_data, proxies=proxy_data)
-        outer_ip = response.text.strip().replace('\n', '')
-        print(f"当前IP地址: {outer_ip}")
-        return f"当前IP地址: {outer_ip}"
+        data = response.json()
+
+        # 只返回指定信息
+        result = {
+            'IP地址': data.get('ip', '未知'),
+            '国家': data.get('country_name', '未知'),
+            '地区': data.get('region', '未知'),
+            '城市': data.get('city', '未知')
+        }
+
+        return result
     except Exception as e:
         print(f"代理请求失败: {str(e)}")
-        return f"代理请求失败: {str(e)}"
+        return {'错误': f"代理请求失败: {str(e)}"}
 
 
 @app.route('/json')
