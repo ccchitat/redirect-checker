@@ -53,12 +53,12 @@ def test_proxy_request():
 
         # 先获取IP信息
         ip_response = requests.get('https://ipapi.co/json/',
-                                   headers=head_data)
+                                   headers=head_data, proxies=proxy_data)
         ip_data = ip_response.json()
 
         # 访问目标链接
         target_response = requests.get(
-            target_link, headers=head_data)
+            target_link, headers=head_data, proxies=proxy_data)
 
         # 调用重定向检查器API
         redirect_check_url = f"https://api.redirect-checker.net/?url={requests.utils.quote(target_link)}&timeout=5&maxhops=10&meta-refresh=1&format=json"
