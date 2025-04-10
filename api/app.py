@@ -1,17 +1,9 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import pymysql
 import os
 from contextlib import contextmanager
 from dotenv import load_dotenv
 import requests
-
-# 代理服务器配置
-proxy_info = {
-    "username": "psud56605-region-US",
-    "password": "gdwkhht1",
-    "host": "us.cliproxy.io",
-    "port": "3010"
-}
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -27,42 +19,62 @@ def home():
     return 'Hello, World!'
 
 
-@app.route('/proxy')
+@app.route('/proxy', methods=['POST'])
 def test_proxy_request():
-    # 构建代理URL - 使用正确的格式
-    # 格式应该是: http://username:password@host:port
-    proxy_url = f"http://{proxy_info['username']}:{proxy_info['password']}@{proxy_info['host']}:{proxy_info['port']}"
-    print(f"当前代理地址: {proxy_url}")
-
-    # 代理IP地址
-    proxy_data = {
-        'http': proxy_url,
-        'https': proxy_url,
-    }
-
-    # 客户端说明
-    head_data = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0',
-        'Connection': 'keep-alive'
-    }
-
     try:
-        response = requests.get('https://ipapi.co/json/',
-                                headers=head_data, proxies=proxy_data)
-        data = response.json()
+        # 获取请求体数据
+        request_data = request.get_json()
+        if not request_data or 'proxy' not in request_data or 'link' not in request_data:
+            return {'错误': '请求体必须包含 proxy 和 link 字段'}, 400
 
-        # 只返回指定信息
+        proxy_info = request_data['proxy']
+        target_link = request_data['link']
+
+        # 验证代理信息是否完整
+        required_fields = ['username', 'password', 'host', 'port']
+        if not all(field in proxy_info for field in required_fields):
+            return {'错误': '代理信息不完整，需要 username、password、host 和 port 字段'}, 400
+
+        # 构建代理URL
+        proxy_url = f"http://{proxy_info['username']}:{proxy_info['password']}@{proxy_info['host']}:{proxy_info['port']}"
+        print(f"当前代理地址: {proxy_url}")
+
+        # 代理IP地址
+        proxy_data = {
+            'http': proxy_url,
+            'https': proxy_url,
+        }
+
+        # 客户端说明
+        head_data = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0',
+            'Connection': 'keep-alive'
+        }
+
+        # 先获取IP信息
+        ip_response = requests.get('https://ipapi.co/json/',
+                                   headers=head_data, proxies=proxy_data)
+        ip_data = ip_response.json()
+
+        # 访问目标链接
+        target_response = requests.get(
+            target_link, headers=head_data, proxies=proxy_data)
+
+        # 返回结果
         result = {
-            'IP地址': data.get('ip', '未知'),
-            '国家': data.get('country_name', '未知'),
-            '地区': data.get('region', '未知'),
-            '城市': data.get('city', '未知')
+            'IP信息': {
+                'IP地址': ip_data.get('ip', '未知'),
+                '国家': ip_data.get('country_name', '未知'),
+                '地区': ip_data.get('region', '未知'),
+                '城市': ip_data.get('city', '未知')
+            },
+            '目标链接状态码': target_response.status_code
         }
 
         return result
     except Exception as e:
-        print(f"代理请求失败: {str(e)}")
-        return {'错误': f"代理请求失败: {str(e)}"}
+        print(f"请求失败: {str(e)}")
+        return {'错误': f"请求失败: {str(e)}"}, 500
 
 
 @app.route('/json')
