@@ -25,7 +25,7 @@ def test_proxy_request():
         # 获取请求体数据
         request_data = request.get_json()
         if not request_data or 'proxy' not in request_data or 'link' not in request_data:
-            return {'错误': '请求体必须包含 proxy 和 link 字段'}, 400
+            return {'error': '请求体必须包含 proxy 和 link 字段'}, 400
 
         proxy_info = request_data['proxy']
         target_link = request_data['link']
@@ -33,7 +33,7 @@ def test_proxy_request():
         # 验证代理信息是否完整
         required_fields = ['username', 'password', 'host', 'port']
         if not all(field in proxy_info for field in required_fields):
-            return {'错误': '代理信息不完整，需要 username、password、host 和 port 字段'}, 400
+            return {'error': '代理信息不完整，需要 username、password、host 和 port 字段'}, 400
 
         # 构建代理URL
         proxy_url = f"http://{proxy_info['username']}:{proxy_info['password']}@{proxy_info['host']}:{proxy_info['port']}"
@@ -60,21 +60,36 @@ def test_proxy_request():
         target_response = requests.get(
             target_link, headers=head_data, proxies=proxy_data)
 
+        # 调用重定向检查器API
+        redirect_check_url = f"https://api.redirect-checker.net/?url={requests.utils.quote(target_link)}&timeout=5&maxhops=10&meta-refresh=1&format=json"
+        redirect_response = requests.get(redirect_check_url)
+        redirect_data = redirect_response.json()
+
+        # 提取重定向链中的URL
+        redirect_path = []
+        if redirect_data.get('result') == 'success' and 'data' in redirect_data:
+            for hop in redirect_data['data']:
+                if 'request' in hop and 'info' in hop['request']:
+                    url = hop['request']['info'].get('url', '')
+                    if url:
+                        redirect_path.append(url.replace('\\/', '/'))
+
         # 返回结果
         result = {
-            'IP信息': {
-                'IP地址': ip_data.get('ip', '未知'),
-                '国家': ip_data.get('country_name', '未知'),
-                '地区': ip_data.get('region', '未知'),
-                '城市': ip_data.get('city', '未知')
+            'ip_info': {
+                'ip': ip_data.get('ip', '未知'),
+                'country': ip_data.get('country_name', '未知'),
+                'region': ip_data.get('region', '未知'),
+                'city': ip_data.get('city', '未知')
             },
-            '目标链接状态码': target_response.status_code
+            'code': target_response.status_code,
+            'redirect_path': redirect_path
         }
 
         return result
     except Exception as e:
         print(f"请求失败: {str(e)}")
-        return {'错误': f"请求失败: {str(e)}"}, 500
+        return {'error': f"请求失败: {str(e)}"}, 500
 
 
 @app.route('/json')
