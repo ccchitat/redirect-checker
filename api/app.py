@@ -52,6 +52,8 @@ def test_proxy_request():
 
         proxy_info = request_data['proxy']
         target_link = request_data['link']
+        # 获取可选的 referer 参数，默认为空字符串
+        referer = request_data.get('referer', '')
 
         # 验证代理信息是否完整
         required_fields = ['username', 'password', 'host', 'port']
@@ -71,7 +73,8 @@ def test_proxy_request():
         # 客户端说明
         head_data = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0',
-            'Connection': 'keep-alive'
+            'Connection': 'keep-alive',
+            'Referer': referer
         }
 
         # 先获取IP信息
@@ -85,7 +88,7 @@ def test_proxy_request():
 
         # 调用重定向检查器API
         redirect_check_url = f"https://api.redirect-checker.net/?url={requests.utils.quote(target_link)}&timeout=5&maxhops=10&meta-refresh=1&format=json"
-        redirect_response = requests.get(redirect_check_url)
+        redirect_response = requests.get(redirect_check_url,headers=head_data, proxies=proxy_data)
         redirect_data = redirect_response.json()
 
         # 提取重定向链中的URL
