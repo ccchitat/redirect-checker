@@ -93,6 +93,9 @@ def test_proxy_request():
             max_hops=10
         )
 
+        print("重定向路径:", " -> ".join(redirect_result['redirect_path']))
+        print("最终URL:", redirect_result['target_url'])
+
         # 获取重定向路径和最终URL
         redirect_path = redirect_result['redirect_path']
         target_url = redirect_result['target_url']
@@ -108,7 +111,8 @@ def test_proxy_request():
             'code': 200,  # 由于我们已经在RedirectChecker中处理了状态码，这里直接返回200
             'redirect_path': redirect_path,
             'target_url': target_url,
-            'tracking_template': create_tracking_template(target_url)
+            'tracking_template': create_tracking_template(target_url),
+            'version': '1.0.0'
         }
 
         return result
