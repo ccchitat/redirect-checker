@@ -54,6 +54,8 @@ class RedirectChecker:
                     timeout=timeout
                 )
 
+                print(f"状态：{response.status_code}  URL：{current_url}")
+
                 # 检查HTTP重定向
                 if 300 <= response.status_code < 400 and 'Location' in response.headers:
                     next_url = response.headers['Location']
