@@ -73,7 +73,7 @@ def test_proxy_request():
 
         # 客户端说明
         head_data = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
             'Connection': 'keep-alive',
             'Referer': referer
         }
