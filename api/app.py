@@ -112,7 +112,7 @@ def test_proxy_request():
             'redirect_path': redirect_path,
             'target_url': target_url,
             'tracking_template': create_tracking_template(target_url),
-            'version': '1.0.0'
+            # 'version': '1.0.0'
         }
 
         return result
